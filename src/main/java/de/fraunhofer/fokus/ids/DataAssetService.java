@@ -17,6 +17,21 @@ import org.apache.commons.lang3.StringUtils;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * 	@newest_changeses_and_notes_of_Zead:
+ * 		@Properties:
+ * 		@methods: (#some_key is a key of the adjustment that you can search for.)
+ * 			@createDataAsset: (edited)
+ * 		        #AddAditioalDataToDatasetObject:
+ * 		            data (pid, author and data_access_level) are read from the received jsonObject (from zenodo) and
+ * 		            saved to neededData variable to be set in dataset object.
+ * 		    @buildDistribution: (edited)
+ * 		        #AddAditioalDataToDistibutionObject:
+ * 		            data (byte_size) is read from the received jsonObject (from zenodo) and
+ * 		            saved to neededData variable to be set in distribution object.
+ *
+ */
+
 public class DataAssetService {
 
     private final Logger LOGGER = LoggerFactory.getLogger(DataAssetService.class.getName());
@@ -72,6 +87,7 @@ public class DataAssetService {
                 dataset.setResourceId(response.result().getString("doi", UUID.randomUUID().toString()));
 
                 JsonObject metadata = response.result().getJsonObject("metadata");
+                //#AddAditioalDataToDatasetObject
                 Map<String, Set<String>> neededData = new HashMap<>();
 
                 if (metadata != null) {
@@ -148,6 +164,7 @@ public class DataAssetService {
         return Future.future(buildDistribution -> {
             Distribution distribution = new Distribution();
             Map<String, Set<String>> neededData = new HashMap<>();
+            //#AddAditioalDataToDistibutionObject
             distribution.setResourceId(UUID.randomUUID().toString());
 
             // TODO determine/generate proper filename
