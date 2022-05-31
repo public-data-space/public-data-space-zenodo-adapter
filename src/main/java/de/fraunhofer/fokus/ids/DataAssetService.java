@@ -14,11 +14,23 @@ import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import org.apache.commons.lang3.StringUtils;
 
-import java.util.Date;
-import java.util.HashSet;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
+
+/**
+ * 	@newest_changeses_and_notes_of_Zead:
+ * 		@Properties:
+ * 		@methods: (#some_key is a key of the adjustment that you can search for.)
+ * 			@createDataAsset: (edited)
+ * 		        #AddAditioalDataToDatasetObject:
+ * 		            data (pid, author and data_access_level) are read from the received jsonObject (from zenodo) and
+ * 		            saved to neededData variable to be set in dataset object.
+ * 		    @buildDistribution: (edited)
+ * 		        #AddAditioalDataToDistibutionObject:
+ * 		            data (byte_size) is read from the received jsonObject (from zenodo) and
+ * 		            saved to neededData variable to be set in distribution object.
+ *
+ */
 
 public class DataAssetService {
 
@@ -75,6 +87,8 @@ public class DataAssetService {
                 dataset.setResourceId(response.result().getString("doi", UUID.randomUUID().toString()));
 
                 JsonObject metadata = response.result().getJsonObject("metadata");
+                //#AddAditioalDataToDatasetObject
+                Map<String, Set<String>> neededData = new HashMap<>();
 
                 if (metadata != null) {
                     if (metadata.containsKey("title"))
@@ -89,6 +103,38 @@ public class DataAssetService {
                     if (metadata.containsKey("version"))
                         dataset.setVersion(metadata.getString("version"));
 
+                    /**
+                     * New Section to add pid, author and data_access_level
+                     */
+                    if (metadata.containsKey("doi") || response.result().containsKey("doi")){
+                        HashSet<String> pid = new HashSet<>();
+                        if(metadata.containsKey("doi"))
+                            pid.add(metadata.getString("doi"));
+                        else
+                            pid.add(response.result().getString("doi"));
+                        neededData.put("pid", pid);
+                    }
+
+                    if (metadata.containsKey("creators")){
+                        StringBuilder authorsNames = new StringBuilder();
+                        for(Object o : metadata.getJsonArray("creators")){
+                            JsonObject jo = (JsonObject) o;
+                            authorsNames.append(jo.getString("name")).append("-");
+                        }
+                        HashSet<String> author = new HashSet<>();
+                        author.add(authorsNames.substring(0, authorsNames.length() - 1));
+                        neededData.put("author", author);
+                    }
+
+                    if (metadata.containsKey("access_right")){
+                        HashSet<String> data_access_level = new HashSet<>();
+                        data_access_level.add( metadata.getString("access_right"));
+                        neededData.put("data_access_level", data_access_level);
+                    }
+                    /**
+                     * End of New Section to add pid, author and data_access_level
+                     */
+
                     if (metadata.containsKey("keywords")) {
                         dataset.setTags(metadata.getJsonArray("keywords")
                                 .stream()
@@ -96,6 +142,7 @@ public class DataAssetService {
                                 .collect(Collectors.toSet()));
                     }
                 }
+                dataset.setAdditionalmetadata(neededData);
 
                 List<Future> distributions = response.result().getJsonArray("files", new JsonArray()).stream()
                         .map(file -> buildDistribution((JsonObject) file, dataset))
@@ -116,11 +163,20 @@ public class DataAssetService {
     private Future<Distribution> buildDistribution(JsonObject zenodoDistribution, Dataset dataset) {
         return Future.future(buildDistribution -> {
             Distribution distribution = new Distribution();
+            Map<String, Set<String>> neededData = new HashMap<>();
+            //#AddAditioalDataToDistibutionObject
             distribution.setResourceId(UUID.randomUUID().toString());
 
             // TODO determine/generate proper filename
-            if (zenodoDistribution.containsKey("type"))
+            if (zenodoDistribution.containsKey("type")) {
                 distribution.setFiletype(zenodoDistribution.getString("type"));
+            }
+
+            if (zenodoDistribution.containsKey("size")) {
+                HashSet<String> byteSize = new HashSet<>();
+                byteSize.add(zenodoDistribution.getInteger("size").toString());
+                neededData.put("byte_size", byteSize);
+            }
 
             if (zenodoDistribution.containsKey("links") && zenodoDistribution.getJsonObject("links").containsKey("self")) {
                 String downloadUrl = zenodoDistribution.getJsonObject("links").getString("self");
@@ -130,6 +186,7 @@ public class DataAssetService {
                         : distribution.getFiletype();
 
                 distribution.setFilename(fileName);
+                distribution.setAdditionalmetadata(neededData);
 
 
                 fileService.tryFile(downloadUrl, downloadFile -> {
