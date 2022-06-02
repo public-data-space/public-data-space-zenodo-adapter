@@ -10,6 +10,7 @@ import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpHeaders;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.JsonArray;
+import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import io.vertx.ext.web.client.WebClient;
@@ -23,6 +24,19 @@ import java.net.URL;
 import java.nio.file.Paths;
 import java.util.UUID;
 
+/**
+ * 	@newest_changeses_and_notes_of_Zead:
+ * 		@Properties:
+ * 		@methods: (#some_key is a key of the adjustment that you can search for.)
+ * 			@getURL: (edited)
+ * 		        #AddAditioalDataToDatasetObject:
+ * 		            I think streamFile() is not needed.
+ * 		            return jsonObject <link, file_path> and pass dataAssetId and distributionId to get the url
+ * 		    @SELECTurl: (edited)
+ * 		        #AddAditioalDataToDistibutionObject:
+ * 		            get one url based on dataAssetId and distributionId
+ *
+ */
 
 public class FileService {
 
@@ -37,11 +51,13 @@ public class FileService {
         this.databaseService = DatabaseService.createProxy(vertx, ApplicationConfig.DATABASE_SERVICE);
     }
 
-    public void getFile(ResourceRequest resourceRequest, HttpServerResponse httpServerResponse) {
+    //#getURL
+    public void getFile(JsonObject requestInfo, HttpServerResponse httpServerResponse, Handler<AsyncResult<JsonObject>> resultHandlerP) {
         getAccessInformation(resultHandler -> {
             if (resultHandler.succeeded()) {
                 if (resultHandler.result() != null) {
-                    streamFile(resultHandler.result(), httpServerResponse);
+                    resultHandlerP.handle(Future.succeededFuture(new JsonObject().put("link", resultHandler.result())));
+                    //streamFile(resultHandler.result(), httpServerResponse);
                 } else {
                     LOGGER.error("File is null");
                     httpServerResponse.setStatusCode(404).end();
@@ -50,16 +66,17 @@ public class FileService {
                 LOGGER.error(resultHandler.cause());
                 httpServerResponse.setStatusCode(404).end();
             }
-        }, resourceRequest.getDataAsset());
+        }, requestInfo.getString("dataAssetId"), requestInfo.getInteger("distributionId"));
     }
 
-    private void getAccessInformation(Handler<AsyncResult<String>> resultHandler, Distribution distribution) {
-        databaseService.query("SELECT url from accessinformation WHERE distributionid = ?", new JsonArray().add(distribution.getResourceId()), handler -> {
+    private void getAccessInformation(Handler<AsyncResult<String>> resultHandler, String dataAssetId, int distributionId) {
+        //#SELECTurl
+        databaseService.query("SELECT url from accessinformation WHERE rowid = ? AND datasetid = ?", new JsonArray().add(distributionId).add(dataAssetId), handler -> {
             if (handler.succeeded()) {
                 if (handler.result().size() == 1) {
                     resultHandler.handle(Future.succeededFuture(handler.result().get(0).getString("url")));
                 } else {
-                    resultHandler.handle(Future.failedFuture("Retrieved either none or multiple results for distribution with id " + distribution.getResourceId()));
+                    resultHandler.handle(Future.failedFuture("Retrieved either none or multiple results for distribution with id " + distributionId));
                     //resultHandler.handle(Future.failedFuture("Retrieved either none or multiple results for distribution with id " + distributionId));
                 }
             } else {

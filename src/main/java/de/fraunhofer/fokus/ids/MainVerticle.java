@@ -76,7 +76,7 @@ public class MainVerticle extends AbstractVerticle {
                             reply(reply, routingContext.response())));
 
             router.post("/getFile").handler(routingContext ->
-                    fileService.getFile(Json.decodeValue(routingContext.getBodyAsString(), ResourceRequest.class), routingContext.response()));
+                    fileService.getFile(routingContext.getBodyAsJson(), routingContext.response(), fileLink -> reply(fileLink, routingContext.response())));
 
             router.route("/supported")
                     .handler(routingContext ->
