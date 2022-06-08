@@ -24,19 +24,6 @@ import java.net.URL;
 import java.nio.file.Paths;
 import java.util.UUID;
 
-/**
- * 	@newest_changeses_and_notes_of_Zead:
- * 		@Properties:
- * 		@methods: (#some_key is a key of the adjustment that you can search for.)
- * 			@getURL: (edited)
- * 		        #AddAditioalDataToDatasetObject:
- * 		            I think streamFile() is not needed.
- * 		            return jsonObject <link, file_path> and pass dataAssetId and distributionId to get the url
- * 		    @SELECTurl: (edited)
- * 		        #AddAditioalDataToDistibutionObject:
- * 		            get one url based on dataAssetId and distributionId
- *
- */
 
 public class FileService {
 
@@ -51,13 +38,11 @@ public class FileService {
         this.databaseService = DatabaseService.createProxy(vertx, ApplicationConfig.DATABASE_SERVICE);
     }
 
-    //#getURL
-    public void getFile(JsonObject requestInfo, HttpServerResponse httpServerResponse, Handler<AsyncResult<JsonObject>> resultHandlerP) {
+    public void getFile(ResourceRequest resourceRequest, HttpServerResponse httpServerResponse) {
         getAccessInformation(resultHandler -> {
             if (resultHandler.succeeded()) {
                 if (resultHandler.result() != null) {
-                    resultHandlerP.handle(Future.succeededFuture(new JsonObject().put("link", resultHandler.result())));
-                    //streamFile(resultHandler.result(), httpServerResponse);
+                    streamFile(resultHandler.result(), httpServerResponse);
                 } else {
                     LOGGER.error("File is null");
                     httpServerResponse.setStatusCode(404).end();
@@ -66,12 +51,47 @@ public class FileService {
                 LOGGER.error(resultHandler.cause());
                 httpServerResponse.setStatusCode(404).end();
             }
-        }, requestInfo.getString("dataAssetId"), requestInfo.getInteger("distributionId"));
+        }, resourceRequest.getDataAsset().getDatasetId(), resourceRequest.getDataAsset().getResourceId());
     }
 
-    private void getAccessInformation(Handler<AsyncResult<String>> resultHandler, String dataAssetId, int distributionId) {
-        //#SELECTurl
-        databaseService.query("SELECT url from accessinformation WHERE rowid = ? AND datasetid = ?", new JsonArray().add(distributionId).add(dataAssetId), handler -> {
+    public void getLink(JsonObject linkData, HttpServerResponse response){
+        getAccessInformation(result -> {
+            if (result.succeeded()) {
+                if (result.result() != null) {
+                    response.putHeader("Transfer-Encoding", "chunked")
+                            .putHeader("content-type", "multipart/form-data;charset=UTF-8")
+                            .putHeader(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + linkData.getString("name") + "\"");
+                    String link = result.result();
+                    try{
+                        URL url = new URL(link);
+                        webClient.getAbs(url.toString())
+                                .as(BodyCodec.pipe(response))
+                                .send(bufferFile -> {
+                                    if(bufferFile.succeeded()){
+                                        LOGGER.info("File sent to client. response status code is: " + bufferFile.result().statusCode());
+                                    }
+                                    else {
+                                        LOGGER.error("Some thing went wrong. Message is: " + bufferFile.cause().getMessage());
+                                    }
+                                });
+                    }
+                    catch (Exception e){
+                        LOGGER.error("error with solving link: " + e.getMessage());
+                        response.setStatusMessage("error with solving link").setStatusCode(500).end();
+                    }
+                } else {
+                    LOGGER.error("File is null");
+                    response.setStatusMessage("file link is null").setStatusCode(500).end();
+                }
+            } else {
+                LOGGER.error(result.cause());
+                response.setStatusMessage("could not get link from DB").setStatusCode(500).end();
+            }
+        }, linkData.getString("dataAssetId"), linkData.getString("resourceId"));
+    }
+
+    private void getAccessInformation(Handler<AsyncResult<String>> resultHandler, String dataAssetId, String distributionId) {
+        databaseService.query("SELECT url from accessinformation WHERE datasetid = ? AND distributionid = ?", new JsonArray().add(dataAssetId).add(distributionId), handler -> {
             if (handler.succeeded()) {
                 if (handler.result().size() == 1) {
                     resultHandler.handle(Future.succeededFuture(handler.result().get(0).getString("url")));

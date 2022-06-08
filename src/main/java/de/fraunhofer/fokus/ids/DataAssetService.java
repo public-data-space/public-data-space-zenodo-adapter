@@ -60,9 +60,10 @@ public class DataAssetService {
 
     private void saveAccessInformation(Distribution dist, String distributionUrl, String datasetId, Handler<AsyncResult<Void>> resultHandler) {
         Date d = new Date();
-        databaseService.update("INSERT INTO accessinformation (created_at, updated_at, datasetid, url) values(?,?,?,?)",
+        databaseService.update("INSERT INTO accessinformation values(?,?,?,?,?)",
                 new JsonArray().add(d.toInstant()).add(d.toInstant())
                         .add(datasetId)
+                        .add(dist.getResourceId())
                         .add(distributionUrl), reply -> {
                     if (reply.succeeded()) {
                         LOGGER.info("Saved distribution with id " + dist.getResourceId() + " from dataset " + datasetId);
