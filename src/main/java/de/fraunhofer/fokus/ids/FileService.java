@@ -1,7 +1,6 @@
 package de.fraunhofer.fokus.ids;
 
 import de.fraunhofer.fokus.ids.messages.ResourceRequest;
-import de.fraunhofer.fokus.ids.persistence.entities.Distribution;
 import de.fraunhofer.fokus.ids.services.database.DatabaseService;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
@@ -54,7 +53,7 @@ public class FileService {
         }, resourceRequest.getDataAsset().getDatasetId(), resourceRequest.getDataAsset().getResourceId());
     }
 
-    public void getLink(JsonObject linkData, HttpServerResponse response){
+    public void getFileStream(JsonObject linkData, HttpServerResponse response){
         getAccessInformation(result -> {
             if (result.succeeded()) {
                 if (result.result() != null) {
