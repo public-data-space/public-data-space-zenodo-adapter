@@ -1,7 +1,6 @@
 package de.fraunhofer.fokus.ids;
 
 import de.fraunhofer.fokus.ids.messages.ResourceRequest;
-import de.fraunhofer.fokus.ids.persistence.entities.Distribution;
 import de.fraunhofer.fokus.ids.services.database.DatabaseService;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
@@ -10,6 +9,7 @@ import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpHeaders;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.JsonArray;
+import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import io.vertx.ext.web.client.WebClient;
@@ -50,16 +50,52 @@ public class FileService {
                 LOGGER.error(resultHandler.cause());
                 httpServerResponse.setStatusCode(404).end();
             }
-        }, resourceRequest.getDataAsset());
+        }, resourceRequest.getDataAsset().getDatasetId(), resourceRequest.getDataAsset().getResourceId());
     }
 
-    private void getAccessInformation(Handler<AsyncResult<String>> resultHandler, Distribution distribution) {
-        databaseService.query("SELECT url from accessinformation WHERE distributionid = ?", new JsonArray().add(distribution.getResourceId()), handler -> {
+    public void getFileStream(JsonObject linkData, HttpServerResponse response){
+        getAccessInformation(result -> {
+            if (result.succeeded()) {
+                if (result.result() != null) {
+                    response.putHeader("Transfer-Encoding", "chunked")
+                            .putHeader("content-type", "multipart/form-data;charset=UTF-8")
+                            .putHeader(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + linkData.getString("name") + "\"");
+                    String link = result.result();
+                    try{
+                        URL url = new URL(link);
+                        webClient.getAbs(url.toString())
+                                .as(BodyCodec.pipe(response))
+                                .send(bufferFile -> {
+                                    if(bufferFile.succeeded()){
+                                        LOGGER.info("File sent to client. response status code is: " + bufferFile.result().statusCode());
+                                    }
+                                    else {
+                                        LOGGER.error("Some thing went wrong. Message is: " + bufferFile.cause().getMessage());
+                                    }
+                                });
+                    }
+                    catch (Exception e){
+                        LOGGER.error("error with solving link: " + e.getMessage());
+                        response.setStatusMessage("error with solving link").setStatusCode(500).end();
+                    }
+                } else {
+                    LOGGER.error("File is null");
+                    response.setStatusMessage("file link is null").setStatusCode(500).end();
+                }
+            } else {
+                LOGGER.error(result.cause());
+                response.setStatusMessage("could not get link from DB").setStatusCode(500).end();
+            }
+        }, linkData.getString("dataAssetId"), linkData.getString("resourceId"));
+    }
+
+    private void getAccessInformation(Handler<AsyncResult<String>> resultHandler, String dataAssetId, String distributionId) {
+        databaseService.query("SELECT url from accessinformation WHERE datasetid = ? AND distributionid = ?", new JsonArray().add(dataAssetId).add(distributionId), handler -> {
             if (handler.succeeded()) {
                 if (handler.result().size() == 1) {
                     resultHandler.handle(Future.succeededFuture(handler.result().get(0).getString("url")));
                 } else {
-                    resultHandler.handle(Future.failedFuture("Retrieved either none or multiple results for distribution with id " + distribution.getResourceId()));
+                    resultHandler.handle(Future.failedFuture("Retrieved either none or multiple results for distribution with id " + distributionId));
                     //resultHandler.handle(Future.failedFuture("Retrieved either none or multiple results for distribution with id " + distributionId));
                 }
             } else {

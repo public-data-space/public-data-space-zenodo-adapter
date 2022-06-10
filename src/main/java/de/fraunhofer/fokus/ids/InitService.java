@@ -40,7 +40,7 @@ public class InitService {
     }
 
     private void initDB(Handler<AsyncResult<Void>> resultHandler) {
-        databaseService.update("CREATE TABLE IF NOT EXISTS accessinformation (created_at, updated_at, distributionid, datasetid, url)", new JsonArray(), handler -> {
+        databaseService.update("CREATE TABLE IF NOT EXISTS accessinformation (created_at, updated_at, datasetid, distributionid, url)", new JsonArray(), handler -> {
             if (handler.succeeded()) {
                 resultHandler.handle(Future.succeededFuture());
             } else {

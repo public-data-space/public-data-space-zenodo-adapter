@@ -62,8 +62,8 @@ public class DataAssetService {
         Date d = new Date();
         databaseService.update("INSERT INTO accessinformation values(?,?,?,?,?)",
                 new JsonArray().add(d.toInstant()).add(d.toInstant())
-                        .add(dist.getResourceId())
                         .add(datasetId)
+                        .add(dist.getResourceId())
                         .add(distributionUrl), reply -> {
                     if (reply.succeeded()) {
                         LOGGER.info("Saved distribution with id " + dist.getResourceId() + " from dataset " + datasetId);
@@ -106,6 +106,8 @@ public class DataAssetService {
                     /**
                      * New Section to add pid, author and data_access_level
                      */
+                    dataset.setPublisher("zenodo.org");
+
                     if (metadata.containsKey("doi") || response.result().containsKey("doi")){
                         HashSet<String> pid = new HashSet<>();
                         if(metadata.containsKey("doi"))
@@ -177,6 +179,7 @@ public class DataAssetService {
                 byteSize.add(zenodoDistribution.getInteger("size").toString());
                 neededData.put("byte_size", byteSize);
             }
+            distribution.setPublisher("zenodo.org");
 
             if (zenodoDistribution.containsKey("links") && zenodoDistribution.getJsonObject("links").containsKey("self")) {
                 String downloadUrl = zenodoDistribution.getJsonObject("links").getString("self");
